@@ -1,148 +1,150 @@
 'use client';
 
-import { useState } from 'react';
-import { PlusCircle, Bike, DollarSign, Award, ArrowUpRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { fetchBikes, deleteBike } from '@/lib/api';
 import AddBikeModal from '@/components/AddBikeModal';
+import { DollarSign, Bike, ShoppingBag } from 'lucide-react';
 
 export default function DashboardPage() {
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [bikes, setBikes] = useState<any[]>([]);
+  const [soldCount, setSoldCount] = useState(0);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Initial Available Bikes State
-  const [bikes, setBikes] = useState([
-    {
-      id: '1',
-      title: 'BMW S1000RR',
-      brand: 'BMW',
-      price: 26500,
-      engineCC: '999 cc',
-      year: 2024,
-      image: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=1000&auto=format&fit=crop',
-    },
-    {
-      id: '2',
-      title: 'Ducati Panigale V4',
-      brand: 'Ducati',
-      price: 31500,
-      engineCC: '1103 cc',
-      year: 2024,
-      image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=1000&auto=format&fit=crop',
-    },
-    {
-      id: '3',
-      title: 'Kawasaki Ninja H2',
-      brand: 'Kawasaki',
-      price: 34000,
-      engineCC: '998 cc',
-      year: 2024,
-      image: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=1000&auto=format&fit=crop',
-    },
-  ]);
+  // Fetch bikes & calculate revenue summary
+  const loadDashboardData = async () => {
+    setLoading(true);
+    try {
+      // 1. Fetch available bikes
+      const availableData = await fetchBikes('available');
+      setBikes(availableData);
 
-  const handleAddNewBike = (newBike: any) => {
-    setBikes((prev) => [newBike, ...prev]);
+      // 2. Fetch sold bikes for analytics summary
+      const soldData = await fetchBikes('sold');
+      setSoldCount(soldData.length);
+      
+      const revenue = soldData.reduce((sum: number, b: any) => sum + (b.salePrice || b.price), 0);
+      setTotalRevenue(revenue);
+    } catch (error) {
+      console.error('Failed to fetch dashboard data', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Are you sure you want to delete this bike?')) {
+      await deleteBike(id);
+      loadDashboardData();
+    }
   };
 
   return (
-    <div className="space-y-8">
-      {/* Overview Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-neutral-900 border border-neutral-800 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <span className="text-xs text-gray-400 font-medium">Available Inventory</span>
-            <div className="text-3xl font-black text-white mt-1">{bikes.length}</div>
-          </div>
-          <div className="p-3 bg-purple-950/60 border border-purple-800/40 rounded-xl text-purple-400">
+    <div className="p-6 space-y-8">
+      
+      {/* ANALYTICS SUMMARY CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-3xl flex items-center gap-4">
+          <div className="p-4 bg-purple-950/60 border border-purple-800/40 rounded-2xl text-purple-400">
             <Bike className="w-6 h-6" />
           </div>
-        </div>
-
-        <div className="bg-neutral-900 border border-neutral-800 p-5 rounded-2xl flex items-center justify-between">
           <div>
-            <span className="text-xs text-gray-400 font-medium">Bikes Sold</span>
-            <div className="text-3xl font-black text-white mt-1">3</div>
-          </div>
-          <div className="p-3 bg-emerald-950/60 border border-emerald-800/40 rounded-xl text-emerald-400">
-            <Award className="w-6 h-6" />
+            <div className="text-xs text-gray-400">Available Inventory</div>
+            <div className="text-2xl font-black text-white">{bikes.length} Bikes</div>
           </div>
         </div>
 
-        <div className="bg-neutral-900 border border-neutral-800 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <span className="text-xs text-gray-400 font-medium">Total Revenue</span>
-            <div className="text-3xl font-black text-white mt-1">$84,500</div>
+        <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-3xl flex items-center gap-4">
+          <div className="p-4 bg-emerald-950/60 border border-emerald-800/40 rounded-2xl text-emerald-400">
+            <ShoppingBag className="w-6 h-6" />
           </div>
-          <div className="p-3 bg-neutral-800 rounded-xl text-purple-400">
+          <div>
+            <div className="text-xs text-gray-400">Total Units Sold</div>
+            <div className="text-2xl font-black text-white">{soldCount} Bikes</div>
+          </div>
+        </div>
+
+        <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-3xl flex items-center gap-4">
+          <div className="p-4 bg-amber-950/60 border border-amber-800/40 rounded-2xl text-amber-400">
             <DollarSign className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="text-xs text-gray-400">Total Revenue Generated</div>
+            <div className="text-2xl font-black text-amber-400">${totalRevenue.toLocaleString()}</div>
           </div>
         </div>
       </div>
 
-      {/* Available Bikes Header + Add Button */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-extrabold text-white">Available Superbikes</h2>
-          <p className="text-gray-400 text-xs mt-0.5">Available Bikes in showroom</p>
-        </div>
-
-        {/* Add New Bike Button */}
+      {/* HEADER & ADD BUTTON */}
+      <div className="flex justify-between items-center pt-2">
+        <h1 className="text-2xl font-bold text-white">Available Bikes</h1>
         <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 self-start sm:self-auto"
+          onClick={() => setIsModalOpen(true)}
+          className="px-4 cursor-pointer py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-600/20 transition-all text-xs"
         >
-          <PlusCircle className="w-4 h-4" />
-          <span>Add New Bike</span>
+          + Add New Bike
         </button>
       </div>
 
-      {/* Available Bikes Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {bikes.map((bike) => (
-          <Link
-            key={bike.id}
-            href={`/dashboard/bikes/${bike.id}`}
-            className="group bg-neutral-900 border border-neutral-800 hover:border-purple-600/50 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-purple-950/30 flex flex-col"
-          >
-            <div className="h-48 overflow-hidden bg-neutral-800 relative">
-              <img
-                src={bike.image}
-                alt={bike.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-              <span className="absolute top-3 left-3 bg-neutral-900/80 backdrop-blur-md text-purple-400 text-xs font-semibold px-2.5 py-1 rounded-md border border-neutral-700">
-                {bike.brand}
-              </span>
-            </div>
-
-            <div className="p-5 flex flex-col justify-between flex-1">
-              <div>
-                <h3 className="text-xl font-bold text-white group-hover:text-purple-400 transition-colors">
-                  {bike.title}
-                </h3>
-                <div className="flex items-center gap-3 text-xs text-gray-400 mt-2">
-                  <span>{bike.engineCC}</span>
-                  <span>•</span>
-                  <span>{bike.year}</span>
+      {/* AVAILABLE BIKES LIST */}
+      {loading ? (
+        <div className="text-gray-400">Loading inventory data...</div>
+      ) : bikes.length === 0 ? (
+        <div className="text-gray-500 bg-neutral-900 p-8 rounded-2xl text-center border border-neutral-800">
+          No bikes currently available. Click "+ Add New Bike" to populate inventory.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {bikes.map((bike) => (
+            <div key={bike._id} className="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden p-4 flex flex-col justify-between space-y-3">
+              <Link href={`/dashboard/bikes/${bike._id}`} className="space-y-3 block group">
+                <div className="overflow-hidden rounded-xl">
+                  <img 
+                    src={bike.image} 
+                    alt={bike.title} 
+                    className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300" 
+                  />
                 </div>
-              </div>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-lg font-bold text-white group-hover:text-purple-400 transition-colors">
+                      {bike.title}
+                    </h3>
+                    <p className="text-xs text-gray-400">{bike.brand} • {bike.year} • {bike.engineCC}</p>
+                  </div>
+                  <span className="text-purple-400 font-bold">${bike.price?.toLocaleString()}</span>
+                </div>
+              </Link>
 
-              <div className="mt-5 pt-4 border-t border-neutral-800 flex items-center justify-between">
-                <span className="text-2xl font-extrabold text-white">${bike.price.toLocaleString()}</span>
-                <span className="text-xs text-purple-400 font-medium flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                  Details <ArrowUpRight className="w-3.5 h-3.5" />
-                </span>
+              <div className="pt-2 border-t border-neutral-800/60">
+                <button
+                  onClick={() => handleDelete(bike._id)}
+                  className="cursor-pointer w-full py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-semibold rounded-lg border border-red-800/40 transition-colors"
+                >
+                  Delete Bike
+                </button>
               </div>
             </div>
-          </Link>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {/* Add Bike Modal Component */}
-      <AddBikeModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onAddBike={handleAddNewBike}
-      />
+      {/* Add Bike Modal */}
+      {isModalOpen && (
+        <AddBikeModal
+          onClose={() => setIsModalOpen(false)}
+          onSuccess={() => {
+            setIsModalOpen(false);
+            loadDashboardData();
+          }}
+        />
+      )}
     </div>
   );
 }

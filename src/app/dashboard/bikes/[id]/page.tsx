@@ -1,157 +1,163 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Trash2, DollarSign, Gauge, Calendar, ShieldCheck, X } from 'lucide-react';
+import { use, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { fetchBikeById, sellBike, deleteBike } from '@/lib/api';
+import { ArrowLeft, Gauge, ShoppingCart, Trash2, CheckCircle2 } from 'lucide-react';
 
-// Temporary dummy bike data
-const bikeDetails = {
-  id: '1',
-  title: 'BMW S1000RR',
-  brand: 'BMW',
-  price: 26500,
-  engineCC: '999 cc',
-  year: 2024,
-  status: 'Available',
-  description: 'The BMW S1000RR is a race-oriented sport bike produced by BMW Motorrad. Known for its exceptional power, lightweight chassis, and advanced electronic rider aids.',
-  image: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=1000&auto=format&fit=crop',
-  features: ['Traction Control', 'Quickshifter', 'ABS Pro', 'Riding Modes', 'TFT Display'],
-};
-
-export default function SingleBikeDetailsPage() {
+export default function AvailableBikeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
   const router = useRouter();
-  const params = useParams();
 
-  // State for Sell Modal
+  const [bike, setBike] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [isSellModalOpen, setIsSellModalOpen] = useState(false);
+  const [isSelling, setIsSelling] = useState(false);
 
-  // State for Buyer Form
-  const [buyerName, setBuyerName] = useState('');
-  const [buyerAge, setBuyerAge] = useState('');
-  const [buyerPhone, setBuyerPhone] = useState('');
-  const [buyerAddress, setBuyerAddress] = useState('');
+  // Buyer Form State
+  const [buyerData, setBuyerData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    idNumber: '',
+    salePrice: 0,
+    paymentMethod: 'Bank Wire Transfer',
+  });
 
-  // Handle selling the bike
-  const handleSellBike = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    console.log('Bike Sold to:', {
-      bikeId: params.id,
-      buyerName,
-      buyerAge,
-      buyerPhone,
-      buyerAddress,
-    });
-
-    setIsSellModalOpen(false);
-    router.push('/dashboard/sold');
+  // Load bike details from database
+  const loadBikeDetails = async () => {
+    try {
+      const data = await fetchBikeById(resolvedParams.id);
+      setBike(data);
+      if (data) {
+        setBuyerData((prev) => ({ ...prev, salePrice: data.price }));
+      }
+    } catch (err) {
+      console.error('Failed to load bike detail', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Handle bike deletion
-  const handleRemoveBike = () => {
-    if (confirm('Are you sure you want to remove this bike?')) {
+  useEffect(() => {
+    loadBikeDetails();
+  }, [resolvedParams.id]);
+
+  // Handle Delete Bike
+  const handleDelete = async () => {
+    if (confirm('Are you sure you want to permanently delete this bike?')) {
+      await deleteBike(resolvedParams.id);
       router.push('/dashboard');
     }
   };
 
-  return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Back Button */}
-      <button
-        onClick={() => router.back()}
-        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        <span>Back to Available Bikes</span>
-      </button>
+  // Handle Sell Bike Submission
+  const handleSellSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSelling(true);
 
-      {/* Main Container */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl overflow-hidden shadow-2xl grid grid-cols-1 lg:grid-cols-2 gap-8 p-6 lg:p-8">
-        {/* Left Column: Image */}
-        <div className="rounded-2xl overflow-hidden bg-neutral-800 h-[350px] lg:h-full">
-          <img
-            src={bikeDetails.image}
-            alt={bikeDetails.title}
-            className="w-full h-full object-cover"
-          />
+    try {
+      const payload = {
+        salePrice: buyerData.salePrice,
+        paymentMethod: buyerData.paymentMethod,
+        soldDate: new Date().toISOString().split('T')[0],
+        owner: {
+          name: buyerData.name,
+          email: buyerData.email,
+          phone: buyerData.phone,
+          address: buyerData.address,
+          idNumber: buyerData.idNumber,
+        },
+      };
+
+      await sellBike(resolvedParams.id, payload);
+      alert('Bike marked as SOLD successfully!');
+      setIsSellModalOpen(false);
+      router.push('/dashboard/sold');
+    } catch (error) {
+      alert('Failed to process sale.');
+    } finally {
+      setIsSelling(false);
+    }
+  };
+
+  if (loading) return <div className="p-8 text-gray-400">Loading bike details...</div>;
+  if (!bike) return <div className="p-8 text-red-400">Bike record not found.</div>;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-8 pb-12 p-6">
+      {/* Back Button */}
+      <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white">
+        <ArrowLeft className="w-4 h-4" />
+        <span>Back to Available Bikes</span>
+      </Link>
+
+      {/* Hero Title Section */}
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 lg:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-wider text-purple-400 bg-purple-950/80 border border-purple-800/40 px-3 py-1 rounded-md">
+            {bike.brand}
+          </span>
+          <h1 className="text-3xl font-black text-white mt-2">{bike.title}</h1>
+          <p className="text-gray-400 text-xs mt-1">VIN: {bike.vin} • Model Year: {bike.year}</p>
         </div>
 
-        {/* Right Column: Bike Specs & Actions */}
-        <div className="flex flex-col justify-between space-y-6">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-purple-400 bg-purple-950/60 border border-purple-800/40 px-3 py-1 rounded-md">
-                {bikeDetails.brand}
-              </span>
-              <span className="text-xs font-medium text-emerald-400 bg-emerald-950/50 border border-emerald-800/40 px-3 py-1 rounded-md">
-                {bikeDetails.status}
-              </span>
-            </div>
+        <div className="text-left md:text-right">
+          <div className="text-xs text-gray-400">Listed Price</div>
+          <div className="text-3xl font-extrabold text-purple-400">${bike.price?.toLocaleString()}</div>
+        </div>
+      </div>
 
-            <h1 className="text-3xl font-extrabold text-white mt-3">
-              {bikeDetails.title}
-            </h1>
+      {/* Action Buttons: Sell or Delete */}
+      <div className="flex flex-wrap gap-4">
+        <button
+          onClick={() => setIsSellModalOpen(true)}
+          className="cursor-pointer flex-1 py-3 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+        >
+          <ShoppingCart className="w-5 h-5" />
+          <span>Sell This Bike</span>
+        </button>
 
-            <div className="text-3xl font-extrabold text-purple-400 mt-2">
-              ${bikeDetails.price.toLocaleString()}
-            </div>
+        <button
+          onClick={handleDelete}
+          className="py-3 px-6 cursor-pointer bg-red-950/60 hover:bg-red-900/80 text-red-400 text-xs font-semibold rounded-xl border border-red-800/40 transition-all flex items-center gap-2"
+        >
+          <Trash2 className="w-4 h-4" />
+          <span>Remove From System</span>
+        </button>
+      </div>
 
-            <p className="text-gray-400 text-sm mt-4 leading-relaxed">
-              {bikeDetails.description}
-            </p>
+      {/* Bike Specifications Display */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-3xl overflow-hidden h-80 relative">
+          <img src={bike.image} alt={bike.title} className="w-full h-full object-cover" />
+        </div>
 
-            {/* Quick Specs Grid */}
-            <div className="grid grid-cols-2 gap-4 mt-6">
-              <div className="bg-neutral-800/60 border border-neutral-800 p-3 rounded-xl flex items-center gap-3">
-                <Gauge className="w-5 h-5 text-purple-400" />
-                <div>
-                  <div className="text-xs text-gray-500">Engine</div>
-                  <div className="text-sm font-semibold text-gray-200">{bikeDetails.engineCC}</div>
-                </div>
-              </div>
-              <div className="bg-neutral-800/60 border border-neutral-800 p-3 rounded-xl flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-purple-400" />
-                <div>
-                  <div className="text-xs text-gray-500">Year</div>
-                  <div className="text-sm font-semibold text-gray-200">{bikeDetails.year}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Key Features */}
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold text-gray-300 mb-2">Key Features</h3>
-              <div className="flex flex-wrap gap-2">
-                {bikeDetails.features.map((feature, index) => (
-                  <span
-                    key={index}
-                    className="text-xs bg-neutral-800 text-gray-300 px-3 py-1.5 rounded-lg border border-neutral-700/60 flex items-center gap-1.5"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-                    {feature}
-                  </span>
-                ))}
-              </div>
-            </div>
+        <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 space-y-4">
+          <div className="flex items-center gap-2 pb-3 border-b border-neutral-800">
+            <Gauge className="w-5 h-5 text-purple-400" />
+            <h2 className="text-lg font-bold text-white">Bike Specifications</h2>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-4 pt-4 border-t border-neutral-800">
-            <button
-              onClick={() => setIsSellModalOpen(true)}
-              className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2"
-            >
-              <DollarSign className="w-5 h-5" />
-              <span>Sell This Bike</span>
-            </button>
-
-            <button
-              onClick={handleRemoveBike}
-              className="py-3 px-4 bg-neutral-800 hover:bg-red-950/40 text-red-400 hover:text-red-300 font-semibold rounded-xl border border-neutral-700 hover:border-red-800/60 transition-all flex items-center justify-center gap-2"
-            >
-              <Trash2 className="w-5 h-5" />
-              <span>Remove</span>
-            </button>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="bg-neutral-800/50 p-3 rounded-2xl border border-neutral-800">
+              <span className="text-xs text-gray-400 block">Engine Capacity</span>
+              <span className="font-bold text-white mt-1 block">{bike.engineCC}</span>
+            </div>
+            <div className="bg-neutral-800/50 p-3 rounded-2xl border border-neutral-800">
+              <span className="text-xs text-gray-400 block">Color</span>
+              <span className="font-bold text-white mt-1 block">{bike.color}</span>
+            </div>
+            <div className="bg-neutral-800/50 p-3 rounded-2xl border border-neutral-800">
+              <span className="text-xs text-gray-400 block">Status</span>
+              <span className="font-bold text-emerald-400 mt-1 block capitalize">{bike.status}</span>
+            </div>
+            <div className="bg-neutral-800/50 p-3 rounded-2xl border border-neutral-800">
+              <span className="text-xs text-gray-400 block">Year</span>
+              <span className="font-bold text-white mt-1 block">{bike.year}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -159,73 +165,100 @@ export default function SingleBikeDetailsPage() {
       {/* SELL BIKE MODAL */}
       {isSellModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 shadow-2xl relative">
-            <button
-              onClick={() => setIsSellModalOpen(false)}
-              className="absolute top-5 right-5 text-gray-400 hover:text-white"
-            >
-              <X className="w-6 h-6" />
-            </button>
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-5">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              Complete Sale Transaction
+            </h2>
 
-            <h2 className="text-2xl font-bold text-white mb-1">Sell Bike</h2>
-            <p className="text-gray-400 text-sm mb-6">Enter buyer details to complete the sale</p>
-
-            <form onSubmit={handleSellBike} className="space-y-4">
+            <form onSubmit={handleSellSubmit} className="space-y-3 text-xs">
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Owner / Buyer Name</label>
+                <label className="text-gray-400 block mb-1">Buyer Full Name</label>
                 <input
-                  type="text"
                   required
-                  value={buyerName}
-                  onChange={(e) => setBuyerName(e.target.value)}
-                  placeholder="e.g. John Doe"
-                  className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white"
+                  onChange={(e) => setBuyerData({ ...buyerData, name: e.target.value })}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Buyer Age</label>
+                  <label className="text-gray-400 block mb-1">Phone Number</label>
                   <input
-                    type="number"
                     required
-                    value={buyerAge}
-                    onChange={(e) => setBuyerAge(e.target.value)}
-                    placeholder="e.g. 28"
-                    className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                    className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white"
+                    onChange={(e) => setBuyerData({ ...buyerData, phone: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Phone Number</label>
+                  <label className="text-gray-400 block mb-1">NIC / ID Number</label>
                   <input
-                    type="text"
                     required
-                    value={buyerPhone}
-                    onChange={(e) => setBuyerPhone(e.target.value)}
-                    placeholder="e.g. +94 77 123 4567"
-                    className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                    className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white"
+                    onChange={(e) => setBuyerData({ ...buyerData, idNumber: e.target.value })}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Address</label>
-                <textarea
+                <label className="text-gray-400 block mb-1">Email Address</label>
+                <input
+                  type="email"
                   required
-                  rows={3}
-                  value={buyerAddress}
-                  onChange={(e) => setBuyerAddress(e.target.value)}
-                  placeholder="Enter full address"
-                  className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                ></textarea>
+                  className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white"
+                  onChange={(e) => setBuyerData({ ...buyerData, email: e.target.value })}
+                />
               </div>
 
-              <button
-                type="submit"
-                className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-600/30 mt-4"
-              >
-                Confirm & Sell Bike
-              </button>
+              <div>
+                <label className="text-gray-400 block mb-1">Residential Address</label>
+                <input
+                  required
+                  className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white"
+                  onChange={(e) => setBuyerData({ ...buyerData, address: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="text-gray-400 block mb-1">Final Selling Price ($)</label>
+                  <input
+                    type="number"
+                    required
+                    value={buyerData.salePrice}
+                    className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white font-bold"
+                    onChange={(e) => setBuyerData({ ...buyerData, salePrice: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className="text-gray-400 block mb-1">Payment Method</label>
+                  <select
+                    className="w-full p-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white"
+                    onChange={(e) => setBuyerData({ ...buyerData, paymentMethod: e.target.value })}
+                  >
+                    <option value="Bank Wire Transfer">Bank Wire Transfer</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Credit Card">Credit Card</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsSellModalOpen(false)}
+                  className="cursor-pointer flex-1 py-2.5 bg-neutral-800 text-gray-300 font-semibold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSelling}
+                  className="cursor-pointer flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all"
+                >
+                  {isSelling ? 'Processing...' : 'Confirm Sale'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

@@ -1,72 +1,81 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { loginAdmin } from '@/lib/api';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = (e: FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
 
-    if (username === 'admin' && password === '1234') {
-      setError('');
-      router.push('/dashboard');
-    } else {
-      setError('Invalid username or password!');
+    try {
+      const data = await loginAdmin(username, password);
+
+      if (data.token) {
+        // Save token to localStorage
+        localStorage.setItem('adminToken', data.token);
+        localStorage.setItem('adminUser', JSON.stringify(data.user));
+        
+        // Redirect to Dashboard
+        router.push('/dashboard');
+      } else {
+        setError(data.message || 'Invalid credentials');
+      }
+    } catch (err) {
+      setError('Cannot connect to Backend Server');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col justify-center items-center px-4">
-      {/* Top Header */}
-      <h1 className="text-4xl font-extrabold tracking-wider text-purple-600 mb-8 uppercase">
-        Classified Bikes
-      </h1>
-
-      {/* Login Card */}
-      <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-2xl shadow-purple-950/20">
-        <h2 className="text-2xl font-bold text-center text-gray-200 mb-6">Login</h2>
-
+    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
+      <div className="bg-neutral-900 border border-neutral-800 p-8 rounded-3xl w-full max-w-md space-y-6">
+        <h1 className="text-2xl font-bold text-white text-center">Admin Login</h1>
+        
         {error && (
-          <div className="mb-4 p-3 bg-purple-900/40 border border-purple-500/50 rounded-lg text-purple-200 text-sm text-center">
+          <div className="p-3 bg-red-950/60 border border-red-800/40 text-red-400 text-xs rounded-xl text-center">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Username</label>
+            <label className="block text-xs font-medium text-gray-400 mb-1">Username</label>
             <input
               type="text"
+              required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username"
-              required
-              className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-all"
+              className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:outline-none focus:border-purple-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Password</label>
+            <label className="block text-xs font-medium text-gray-400 mb-1">Password</label>
             <input
               type="password"
+              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
-              required
-              className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-all"
+              className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white focus:outline-none focus:border-purple-500"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-purple-600/30"
+            disabled={loading}
+            className="w-full cursor-pointer py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-600/30"
           >
-            Login
+            {loading ? 'Logging in...' : 'Sign In'}
           </button>
         </form>
       </div>
